@@ -46,32 +46,30 @@ activities <- read.table("./UCI HAR Dataset/activity_labels.txt", header = F, st
 
 ########## Loading and creating the train dataset ##########
 
-train_data <- read.table("./UCI HAR Dataset/train/X_train.txt", header = F, stringsAsFactors = F, col.names = features$V2)
-
 train_activities <- read.table("./UCI HAR Dataset/train/y_train.txt", header = F)
 
 train_subjects <- read.table("./UCI HAR Dataset/train/subject_train.txt", header = F)
 
-train_data <- keep_necessary_columns(train_data)
+train_data <- data.frame(subject = as.factor(train_subjects[, 1]), activity = activities[train_activities[, 1], 2])
 
-train_data$activity <- activities[train_activities[1, ], 2]
-train_data$subject <- train_subjects[, 1]
+train <- read.table("./UCI HAR Dataset/train/X_train.txt", header = F, stringsAsFactors = F, col.names = features$V2)
 
-########################################################
+train_data <- cbind(train_data, keep_necessary_columns(train))
+
+############################################################
 
 
 ########## Loading and creating the test dataset ##########
-
-test_data <- read.table("./UCI HAR Dataset/test/X_test.txt", header = F, stringsAsFactors = F, col.names = features$V2)
 
 test_activities <- read.table("./UCI HAR Dataset/test/y_test.txt", header = F)
 
 test_subjects <- read.table("./UCI HAR Dataset/test/subject_test.txt", header = F)
 
-test_data <- keep_necessary_columns(test_data)
+test_data <- data.frame(subject = as.factor(test_subjects[, 1]), activity = activities[test_activities[, 1], 2])
 
-test_data$activity <- activities[test_activities[1, ], 2]
-test_data$subject <- test_subjects[, 1]
+test <- read.table("./UCI HAR Dataset/test/X_test.txt", header = F, stringsAsFactors = F, col.names = features$V2)
+
+test_data <- cbind(test_data, keep_necessary_columns(test))
 
 ########################################################
 
@@ -79,5 +77,11 @@ test_data$subject <- test_subjects[, 1]
 # Combine the 2 datasets above to create one bigger.
 merged_dataset <- rbind(train_data, test_data)
 
+# Create a dataset with the means of the numeric variables of the merged dataset,
+# grouped by (activity, subject).
+merged_dataset.means <- aggregate(x = merged_dataset[, -c(1, 2)], 
+                                  by = list(subject = merged_dataset$subject, activity = merged_dataset$activity),
+                                  FUN = "mean")
 
-
+# Save the tidy dataset with the means.
+write.table(merged_dataset.means, file = "./tidy.txt", row.names = F)
