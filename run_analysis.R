@@ -1,87 +1,91 @@
-# This function is used in order to keep only the columns that contain measurements
-# about the means and standard deviations of the data that we read.
-keep_necessary_columns <- function(inp_df) {
-  names_splitted <- strsplit(names(inp_df), "\\.")
-  
-  cols = vector()
-  names_fixed = vector()
-  
-  for (i in 1: length(names_splitted)) {
-    current_vector <- names_splitted[[i]]
-    
-    if ( grepl("^mean$", current_vector[2]) ) {
-      cols[i] <- TRUE
-      
-      if (is.na(current_vector[5])) {
-        names_fixed[i] <- paste(current_vector[1], "Mean", sep = "")
-      } else {
-        names_fixed[i] <- paste(current_vector[1], "Mean", current_vector[5], sep = "")
-      }
-    } else if ( grepl("^std$", current_vector[2]) ) {
-      cols[i] <- TRUE
-      
-      if (is.na(current_vector[5])) {
-        names_fixed[i] <- paste(current_vector[1], "Std", sep = "")
-      } else {
-        names_fixed[i] <- paste(current_vector[1], "Std", current_vector[5], sep = "") 
-      }
-    } else {
-      cols[i] <- FALSE
-      names_fixed[i] <- "NULL"
-    }
-  }
-  
-  names(inp_df) <- names_fixed
-  
-  inp_df[, cols]
-}
+############################# 1. Download files #############################
+
+if(!file.exists("./data")) { dir.create("./data") }
+
+fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+
+download.file(fileUrl, destfile="./data/Dataset.zip")
+
+#############################################################################
 
 
-# Load features
-features <- read.table("./UCI HAR Dataset/features.txt", header = F, stringsAsFactors = F)
+############################# 2. Unzip the file #############################
 
-# Load activity labels.
-activities <- read.table("./UCI HAR Dataset/activity_labels.txt", header = F, stringsAsFactors = T)
+unzip(zipfile="./data/Dataset.zip",exdir="./data")
 
-
-########## Loading and creating the train dataset ##########
-
-train_activities <- read.table("./UCI HAR Dataset/train/y_train.txt", header = F)
-
-train_subjects <- read.table("./UCI HAR Dataset/train/subject_train.txt", header = F)
-
-train_data <- data.frame(subject = as.factor(train_subjects[, 1]), activity = activities[train_activities[, 1], 2])
-
-train <- read.table("./UCI HAR Dataset/train/X_train.txt", header = F, stringsAsFactors = F, col.names = features$V2)
-
-train_data <- cbind(train_data, keep_necessary_columns(train))
-
-############################################################
+#############################################################################
 
 
-########## Loading and creating the test dataset ##########
+############### 3. Read all files concerning the training set ###############
 
-test_activities <- read.table("./UCI HAR Dataset/test/y_test.txt", header = F)
+train_data_activities <- read.table("./data/UCI HAR Dataset/train/y_train.txt", header = F)
+train_data_subjects <- read.table("./data/UCI HAR Dataset/train/subject_train.txt", header = F)
+train_data <- read.table("./data/UCI HAR Dataset/train/x_train.txt", header = F)
 
-test_subjects <- read.table("./UCI HAR Dataset/test/subject_test.txt", header = F)
-
-test_data <- data.frame(subject = as.factor(test_subjects[, 1]), activity = activities[test_activities[, 1], 2])
-
-test <- read.table("./UCI HAR Dataset/test/X_test.txt", header = F, stringsAsFactors = F, col.names = features$V2)
-
-test_data <- cbind(test_data, keep_necessary_columns(test))
-
-########################################################
+#############################################################################
 
 
-# Combine the 2 datasets above to create one bigger.
-merged_dataset <- rbind(train_data, test_data)
+############### 4. Read all files concerning the test dataset ###############
 
-# Create a dataset with the means of the numeric variables of the merged dataset,
-# grouped by (activity, subject).
-merged_dataset.means <- aggregate(x = merged_dataset[, -c(1, 2)], 
-                                  by = list(subject = merged_dataset$subject, activity = merged_dataset$activity),
-                                  FUN = "mean")
+test_data_activities <- read.table("./data/UCI HAR Dataset/test/y_test.txt", header = F)
+test_data_subjects <- read.table("./data/UCI HAR Dataset/test/subject_test.txt", header = F)
+test_data <- read.table("./data/UCI HAR Dataset/test/x_test.txt", header = F)
 
-# Save the tidy dataset with the means.
-write.table(merged_dataset.means, file = "./tidy.txt", row.names = F)
+#############################################################################
+
+
+######################## 5. Combine the data tables #########################
+
+all_activities <- rbind(train_data_activities, test_data_activities)
+all_subjects <- rbind(train_data_subjects, test_data_subjects)
+all_data <- rbind(train_data, test_data)
+
+#############################################################################
+
+
+########################## 6. Set names to columns ##########################
+
+names(all_activities) <- c("activity")
+names(all_subjects) <- c("subject")
+
+feature_names <- read.table("./data/UCI HAR Dataset/features.txt", header = F)
+names(all_data) <- feature_names[, 2]
+
+#############################################################################
+
+
+############### 7. Merge data tables to create a complete one ###############
+
+Data <- cbind(all_subjects, all_activities, all_data)
+
+#############################################################################
+
+
+############# 8. Extract columns with means and st. deviations ##############
+
+wanted_names <- feature_names$V2[grep("mean\\(\\)|std\\(\\)", feature_names$V2)]
+
+n <- c("subject", "activity", as.character(wanted_names))
+
+Data <- subset(Data, select = n)
+
+#############################################################################
+
+
+################# 9. Use activity names instead of integers #################
+
+activity_labels <- read.table("./data/UCI HAR Dataset/activity_labels.txt", header = F, stringsAsFactors = T)
+
+Data[, 2] <- activity_labels[Data[, 2], 2]
+
+#############################################################################
+
+
+###### 9. Create and save a tidy dataset with the means of each variable ####
+
+tidy <- aggregate(. ~ subject + activity, data = Data, FUN = mean)
+tidy <- tidy[order(tidy$subject, tidy$activity), ]
+
+write.table(tidy, file = "./tidy.txt", row.names = F)
+
+#############################################################################
